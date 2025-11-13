@@ -1,15 +1,15 @@
-package Monopoly;
+package old;
 
-import Monopoly.plot.chance.ChanceManage;
-import Monopoly.plot.company.Company;
-import Monopoly.plot.company.CompanyManage;
-import Monopoly.plot.country.Country;
-import Monopoly.plot.fate.FateManage;
-import Monopoly.map.Map;
-import Monopoly.plot.country.CountryManage;
-import Monopoly.player.Player;
-import Monopoly.plot.trainStation.TrainStation;
-import Monopoly.plot.trainStation.TrainStationManage;
+import old.plot.chance.ChanceManage;
+import old.plot.company.Company;
+import old.plot.company.CompanyManage;
+import old.plot.country.Country;
+import old.plot.fate.FateManage;
+import old.map.Map;
+import old.plot.country.CountryManage;
+import old.player.Player;
+import old.plot.trainStation.TrainStation;
+import old.plot.trainStation.TrainStationManage;
 import lombok.Data;
 
 import java.util.*;

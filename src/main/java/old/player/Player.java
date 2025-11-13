@@ -1,4 +1,4 @@
-package Monopoly.player;
+package old.player;
 
 import lombok.Data;
 

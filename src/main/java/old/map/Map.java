@@ -1,4 +1,4 @@
-package Monopoly.map;
+package old.map;
 
 import lombok.Data;
 

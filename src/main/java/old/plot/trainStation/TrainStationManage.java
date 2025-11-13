@@ -1,6 +1,6 @@
-package Monopoly.plot.trainStation;
+package old.plot.trainStation;
 
-import Monopoly.map.Map;
+import old.map.Map;
 
 import java.util.HashMap;
 

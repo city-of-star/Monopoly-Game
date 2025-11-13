@@ -1,4 +1,4 @@
-package Monopoly.plot.company;
+package old.plot.company;
 
 import lombok.Data;
 

@@ -1,6 +1,6 @@
-package Monopoly.plot.company;
+package old.plot.company;
 
-import Monopoly.map.Map;
+import old.map.Map;
 
 import java.util.HashMap;
 

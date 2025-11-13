@@ -1,4 +1,4 @@
-package Monopoly.plot.trainStation;
+package old.plot.trainStation;
 
 import lombok.Data;
 

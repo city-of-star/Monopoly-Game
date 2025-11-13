@@ -1,4 +1,4 @@
-package Monopoly.plot.chance;
+package old.plot.chance;
 
 import lombok.Data;
 

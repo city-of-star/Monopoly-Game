@@ -1,9 +1,9 @@
-package Monopoly.plot.chance;
+package old.plot.chance;
 
-import Monopoly.Game;
-import Monopoly.Utils;
-import Monopoly.map.Map;
-import Monopoly.plot.country.CountryManage;
+import old.Game;
+import old.Utils;
+import old.map.Map;
+import old.plot.country.CountryManage;
 
 import java.util.HashMap;
 

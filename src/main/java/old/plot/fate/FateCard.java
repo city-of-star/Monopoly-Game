@@ -1,4 +1,4 @@
-package Monopoly.plot.fate;
+package old.plot.fate;
 
 import lombok.Data;
 

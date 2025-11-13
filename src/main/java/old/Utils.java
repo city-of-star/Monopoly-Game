@@ -1,8 +1,8 @@
-package Monopoly;
+package old;
 
-import Monopoly.player.Player;
-import Monopoly.plot.country.Country;
-import Monopoly.plot.country.CountryManage;
+import old.player.Player;
+import old.plot.country.Country;
+import old.plot.country.CountryManage;
 
 public class Utils {
     // 减少当前玩家的资产
