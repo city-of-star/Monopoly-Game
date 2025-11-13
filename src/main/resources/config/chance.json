@@ -1,0 +1,8 @@
+[
+  { "id": 1, "title": "到印尼品尝麝香猫咖啡", "effect": "lose:1200", "flavor": "猫屎咖啡" },
+  { "id": 2, "title": "在加拿大遇到龙卷风", "effect": "lose:800", "flavor": "龙卷风破坏力惊人" },
+  { "id": 6, "title": "搭乘日本新干线旅游", "effect": "go:1,bonus:2000", "flavor": "子弹列车" },
+  { "id": 7, "title": "在阿拉斯加挖到石油", "effect": "jailCard", "flavor": "能源宝库" },
+  { "id": 8, "title": "拯救北极熊宝宝", "effect": "gain:800", "flavor": "最庞大的陆地肉食动物" }
+]
+

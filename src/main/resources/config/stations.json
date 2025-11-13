@@ -1,0 +1,7 @@
+[
+  { "position": 6,  "name": "纽约火车站", "tollByOwnership": [250,500,1000,2000], "mortgagePrice": 1000, "sellPrice": 2000 },
+  { "position": 16, "name": "巴黎火车站", "tollByOwnership": [250,500,1000,2000], "mortgagePrice": 1000, "sellPrice": 2000 },
+  { "position": 26, "name": "东京火车站", "tollByOwnership": [250,500,1000,2000], "mortgagePrice": 1000, "sellPrice": 2000 },
+  { "position": 36, "name": "北京火车站", "tollByOwnership": [250,500,1000,2000], "mortgagePrice": 1000, "sellPrice": 2000 }
+]
+
