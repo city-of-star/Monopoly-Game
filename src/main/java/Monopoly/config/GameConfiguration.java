@@ -6,6 +6,7 @@ import Monopoly.app.GameApp;
 import Monopoly.core.domain.entity.player.Player;
 import Monopoly.core.ports.OutputPort;
 import Monopoly.core.ports.DecisionPort;
+import Monopoly.core.repo.CardRepository;
 import Monopoly.core.repo.PlayerRepository;
 import Monopoly.core.repo.TileRepository;
 import Monopoly.core.repo.json.JsonCardRepository;
@@ -63,7 +64,7 @@ public class GameConfiguration {
         try {
             ConfigLoader loader = new ConfigLoader();
             TileRepository tileRepo = new JsonTileRepository(loader);
-            new JsonCardRepository(loader); // 触发加载与校验
+            CardRepository cardRepo = new JsonCardRepository(loader); // 触发加载与校验
             PlayerRepository playerRepo = new InMemoryPlayerRepository();
 
             // 控制台交互：人数、初始资金与玩家名称
@@ -76,7 +77,7 @@ public class GameConfiguration {
                 if (name.isEmpty()) name = "玩家" + i;
                 playerRepo.save(new Player(i, name, initialMoney));
             }
-            return new SimpleTurnService(playerRepo, tileRepo, decision);
+            return new SimpleTurnService(playerRepo, tileRepo, cardRepo, decision);
         } catch (Exception e) {
             throw new RuntimeException("初始化回合服务失败: " + e.getMessage(), e);
         }

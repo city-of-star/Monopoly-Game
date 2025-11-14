@@ -8,6 +8,7 @@ import Monopoly.core.event.GameEvent;
 import Monopoly.core.event.InteractiveEvent;
 import Monopoly.core.message.GameMessage;
 import Monopoly.core.ports.OutputPort;
+import Monopoly.core.repo.CardRepository;
 import Monopoly.core.repo.PlayerRepository;
 import Monopoly.core.repo.TileRepository;
 import Monopoly.core.repo.json.JsonCardRepository;
@@ -71,11 +72,11 @@ public class GameApp {
         try {
             ConfigLoader loader = new ConfigLoader();
             TileRepository tileRepo = new JsonTileRepository(loader);
-            new JsonCardRepository(loader); // 校验卡牌配置加载
+            CardRepository cardRepo = new JsonCardRepository(loader); // 校验卡牌配置加载
             PlayerRepository playerRepo = new InMemoryPlayerRepository();
             playerRepo.save(new Player(1, "玩家A", 8000));
             playerRepo.save(new Player(2, "玩家B", 8000));
-            TurnService turnService = new SimpleTurnService(playerRepo, tileRepo, new ConsoleDecisionAdapter());
+            TurnService turnService = new SimpleTurnService(playerRepo, tileRepo, cardRepo, new ConsoleDecisionAdapter());
             OutputPort output = new ConsoleOutputAdapter();
             return new GameApp(turnService, output);
         } catch (Exception e) {

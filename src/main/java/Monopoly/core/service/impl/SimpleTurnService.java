@@ -6,6 +6,9 @@ import Monopoly.core.domain.state.PropertyState;
 import Monopoly.core.event.GameEvent;
 import Monopoly.core.event.InteractiveEvent;
 import Monopoly.core.ports.DecisionPort;
+import Monopoly.core.domain.entity.card.CardType;
+import Monopoly.core.domain.entity.card.DrawCard;
+import Monopoly.core.repo.CardRepository;
 import Monopoly.core.repo.PlayerRepository;
 import Monopoly.core.repo.TileRepository;
 import Monopoly.core.service.TurnService;
@@ -20,6 +23,7 @@ public class SimpleTurnService implements TurnService {
 
     private final PlayerRepository playerRepository;
     private final TileRepository tileRepository;
+    private final CardRepository cardRepository;
     private final DecisionPort decisionPort;
     private final Random random = new Random();
     private int currentPlayerIndex = 0;
@@ -40,11 +44,13 @@ public class SimpleTurnService implements TurnService {
      *
      * @param playerRepository 玩家仓库
      * @param tileRepository 地块仓库
+     * @param cardRepository 卡牌仓库
      * @param decisionPort 决策端口
      */
-    public SimpleTurnService(PlayerRepository playerRepository, TileRepository tileRepository, DecisionPort decisionPort) {
+    public SimpleTurnService(PlayerRepository playerRepository, TileRepository tileRepository, CardRepository cardRepository, DecisionPort decisionPort) {
         this.playerRepository = playerRepository;
         this.tileRepository = tileRepository;
+        this.cardRepository = cardRepository;
         this.decisionPort = decisionPort;
     }
 
@@ -1100,14 +1106,8 @@ public class SimpleTurnService implements TurnService {
             case TRAIN_STATION -> event = createTrainStationEvent(players, player, (TrainStationTile) tile, header, locationLine);
             case COMPANY -> event = createCompanyEvent(players, player, (CompanyTile) tile, header, locationLine);
             case CHANCE, FATE -> {
-                // TODO: 实现机会卡和命运卡逻辑
-                // 当卡牌需要玩家支付费用时，使用以下方式：
-                // 1. 支付给银行：handlePayment(player, amount, null, "支付卡牌费用", header, locationLine)
-                // 2. 支付给其他玩家：handlePayment(player, amount, recipient, "支付卡牌费用", header, locationLine)
-                // 3. 或者直接使用：new GenericPaymentPromptEvent(player, recipient, amount, "支付卡牌费用", preMessage)
-                // 这样可以确保钱不够时自动触发抵押流程，抵押完还不够就破产
-                String body = "抽牌逻辑待实现，暂时无效果。";
-                event = new TurnSummaryEvent(player, buildSummary(header, locationLine, body, player));
+                CardType cardType = ((CardTile) tile).getCardType();
+                event = handleCardTile(player, cardType, header, locationLine, passedGo, newPos);
             }
             default -> {
                 String body = "暂无额外事件。";
@@ -2370,6 +2370,399 @@ public class SimpleTurnService implements TurnService {
                 return new TurnSummaryEvent(player, summary);
             }
         }
+    }
+
+    /**
+     * 处理卡牌地块（机会卡或命运卡）。
+     */
+    private GameEvent handleCardTile(Player player, CardType cardType, String header, String locationLine, boolean passedGo, int currentPos) {
+        // 随机抽取一张卡牌
+        Collection<DrawCard> cards = cardRepository.findAllByType(cardType);
+        if (cards.isEmpty()) {
+            String body = "卡牌库为空，无效果。";
+            return new TurnSummaryEvent(player, buildSummary(header, locationLine, body, player));
+        }
+        
+        List<DrawCard> cardList = new ArrayList<>(cards);
+        DrawCard drawnCard = cardList.get(random.nextInt(cardList.size()));
+        
+        String cardInfo = "抽取" + (cardType == CardType.CHANCE ? "机会" : "命运") + "卡：" + drawnCard.getTitle() + "\n";
+        if (drawnCard.getFlavorText() != null && !drawnCard.getFlavorText().isEmpty()) {
+            cardInfo += "描述：" + drawnCard.getFlavorText() + "\n";
+        }
+        cardInfo += "效果：" + getEffectDescription(drawnCard.getEffect()) + "\n";
+        
+        // 处理卡牌效果
+        GameEvent effectEvent = processCardEffect(player, drawnCard, header, locationLine + cardInfo, passedGo, currentPos);
+        return effectEvent;
+    }
+
+    /**
+     * 处理卡牌效果。
+     */
+    private GameEvent processCardEffect(Player player, DrawCard card, String header, String locationLine, boolean passedGo, int currentPos) {
+        String effect = card.getEffect();
+        var players = playerRepository.findAll().stream()
+                .sorted(Comparator.comparingInt(Player::getId))
+                .toList();
+        
+        // 解析效果字符串（可能包含多个效果，用逗号分隔）
+        String[] effects = effect.split(",");
+        List<String> resultMessages = new ArrayList<>();
+        
+        for (String eff : effects) {
+            eff = eff.trim();
+            if (eff.startsWith("lose:")) {
+                // 失去金钱
+                int amount = Integer.parseInt(eff.substring(5));
+                resultMessages.add(processLoseMoney(player, amount, header, locationLine));
+            } else if (eff.startsWith("gain:")) {
+                // 获得金钱
+                int amount = Integer.parseInt(eff.substring(5));
+                player.setMoney(player.getMoney() + amount);
+                playerRepository.save(player);
+                resultMessages.add("获得 " + formatMoney(amount) + "，当前现金：" + formatMoney(player.getMoney()));
+            } else if (eff.startsWith("pause:")) {
+                // 暂停回合
+                int turns = Integer.parseInt(eff.substring(6));
+                player.setPaused(true);
+                playerRepository.save(player);
+                resultMessages.add("下" + turns + "回合将被暂停");
+            } else if (eff.equals("goToJail")) {
+                // 进监狱
+                int jailPosition = 11;
+                player.setPosition(jailPosition);
+                player.setJailTurnsRemaining(2);
+                playerRepository.save(player);
+                resultMessages.add("被送入监狱，此回合和下回合无法行动");
+            } else if (eff.equals("jailCard")) {
+                // 获得出狱许可证
+                player.setHasJailReleasePermit(true);
+                playerRepository.save(player);
+                resultMessages.add("获得出狱许可证");
+            } else if (eff.startsWith("go:")) {
+                // 移动到指定位置
+                String[] parts = eff.substring(3).split(",bonus:");
+                int targetPos = Integer.parseInt(parts[0]);
+                int bonus = parts.length > 1 ? Integer.parseInt(parts[1]) : 0;
+                int oldPos = player.getPosition();
+                player.setPosition(targetPos);
+                if (bonus > 0) {
+                    player.setMoney(player.getMoney() + bonus);
+                }
+                playerRepository.save(player);
+                String tileName = getTileName(targetPos);
+                resultMessages.add("移动到 " + tileName + (bonus > 0 ? "，获得奖励 " + formatMoney(bonus) : ""));
+            } else if (eff.startsWith("fine:max:")) {
+                // 现金最多的玩家被罚款
+                int amount = Integer.parseInt(eff.substring(9));
+                resultMessages.add(processFineMax(player, players, amount, header, locationLine));
+            } else if (eff.startsWith("fine:near:")) {
+                // 最靠近指定位置的玩家被罚款
+                String[] parts = eff.substring(10).split(":");
+                int targetPos = Integer.parseInt(parts[0]);
+                int amount = Integer.parseInt(parts[1]);
+                resultMessages.add(processFineNear(player, players, targetPos, amount, header, locationLine));
+            } else if (eff.startsWith("dice:max:")) {
+                // 所有人掷骰，点数最大的获得奖励
+                int multiplier = Integer.parseInt(eff.substring(9));
+                resultMessages.add(processDiceMax(player, players, multiplier, header, locationLine));
+            } else if (eff.equals("dice:move")) {
+                // 掷骰并移动
+                int dice = rollDice();
+                int oldPos = player.getPosition();
+                boolean passedGoForMove = (oldPos + dice) > 40;
+                int newPos = movePlayer(player, dice);
+                String toName = getTileName(newPos);
+                resultMessages.add("掷骰：" + dice + "，移动到 " + toName);
+                // 需要处理新位置的事件，这里简化处理
+            } else if (eff.equals("buildHouse:min")) {
+                // 房子最少的玩家免费盖一栋
+                resultMessages.add(processBuildHouseMin(player, players, header, locationLine));
+            } else if (eff.equals("removeHouse:max")) {
+                // 房子最多的玩家拆一栋
+                resultMessages.add(processRemoveHouseMax(player, players, header, locationLine));
+            }
+        }
+        
+        String body = String.join("；", resultMessages);
+        return new TurnSummaryEvent(player, buildSummary(header, locationLine, body, player));
+    }
+
+    private String processLoseMoney(Player player, int amount, String header, String locationLine) {
+        if (player.getMoney() >= amount) {
+            payMoney(player, amount);
+            playerRepository.save(player);
+            return "支付 " + formatMoney(amount) + "，当前现金：" + formatMoney(player.getMoney());
+        } else {
+            // 钱不够，需要抵押或破产
+            String body = "需支付 " + formatMoney(amount) + "，但您的现金不足(" + formatMoney(player.getMoney()) + ")。";
+            // 这里应该触发支付流程，暂时简化处理
+            return "需支付 " + formatMoney(amount) + "，但现金不足";
+        }
+    }
+
+    private String processFineMax(Player player, List<Player> players, int amount, String header, String locationLine) {
+        Player maxPlayer = players.stream()
+                .max(Comparator.comparingInt(Player::getMoney))
+                .orElse(null);
+        if (maxPlayer != null && maxPlayer.getMoney() >= amount) {
+            payMoney(maxPlayer, amount);
+            playerRepository.save(maxPlayer);
+            return maxPlayer.getName() + "（现金最多）被罚款 " + formatMoney(amount);
+        }
+        return "无人被罚款";
+    }
+
+    private String processFineNear(Player player, List<Player> players, int targetPos, int amount, String header, String locationLine) {
+        // 找到最靠近目标位置的玩家
+        int minDistance = Integer.MAX_VALUE;
+        List<Player> nearestPlayers = new ArrayList<>();
+        for (Player p : players) {
+            int distance = Math.min(Math.abs(p.getPosition() - targetPos), 
+                    40 - Math.abs(p.getPosition() - targetPos));
+            if (distance < minDistance) {
+                minDistance = distance;
+                nearestPlayers.clear();
+                nearestPlayers.add(p);
+            } else if (distance == minDistance) {
+                nearestPlayers.add(p);
+            }
+        }
+        
+        // 所有最靠近的玩家都被罚款
+        for (Player p : nearestPlayers) {
+            if (p.getMoney() >= amount) {
+                payMoney(p, amount);
+                playerRepository.save(p);
+            }
+        }
+        
+        if (!nearestPlayers.isEmpty()) {
+            String names = nearestPlayers.stream()
+                    .map(Player::getName)
+                    .collect(Collectors.joining("、"));
+            return names + "（最靠近目标位置）被罚款 " + formatMoney(amount);
+        }
+        return "无人被罚款";
+    }
+
+    private String processDiceMax(Player player, List<Player> players, int multiplier, String header, String locationLine) {
+        int maxDice = 0;
+        Player winner = null;
+        Map<Player, Integer> diceResults = new HashMap<>();
+        
+        for (Player p : players) {
+            int dice = random.nextInt(12) + 1; // 1-12
+            diceResults.put(p, dice);
+            if (dice > maxDice) {
+                maxDice = dice;
+                winner = p;
+            }
+        }
+        
+        if (winner != null) {
+            int reward = maxDice * multiplier;
+            winner.setMoney(winner.getMoney() + reward);
+            playerRepository.save(winner);
+            String diceInfo = players.stream()
+                    .map(p -> p.getName() + "：" + diceResults.get(p))
+                    .collect(Collectors.joining("，"));
+            return "所有人掷骰（" + diceInfo + "），" + winner.getName() + " 获胜，获得 " + formatMoney(reward);
+        }
+        return "无人获胜";
+    }
+
+    private String processBuildHouseMin(Player player, List<Player> players, String header, String locationLine) {
+        // 找到房子最少的玩家
+        int minHouses = Integer.MAX_VALUE;
+        List<Player> minPlayers = new ArrayList<>();
+        
+        for (Player p : players) {
+            int houseCount = countTotalHouses(p);
+            if (houseCount < minHouses) {
+                minHouses = houseCount;
+                minPlayers.clear();
+                minPlayers.add(p);
+            } else if (houseCount == minHouses) {
+                minPlayers.add(p);
+            }
+        }
+        
+        // 为所有房子最少的玩家盖一栋房子
+        for (Player p : minPlayers) {
+            CountryTile tile = findMostExpensiveCountryTile(p);
+            if (tile != null) {
+                PropertyState state = getPropertyState(tile.getPosition());
+                if (state.getHouseCount() < 4) {
+                    state.setHouseCount(state.getHouseCount() + 1);
+                } else {
+                    // 4栋房子变成1个旅馆
+                    state.setHouseCount(0);
+                    state.setHotelCount(state.getHotelCount() + 1);
+                }
+            }
+        }
+        
+        if (!minPlayers.isEmpty()) {
+            String names = minPlayers.stream()
+                    .map(Player::getName)
+                    .collect(Collectors.joining("、"));
+            return names + "（房子最少）免费盖一栋房子";
+        }
+        return "无人盖房";
+    }
+
+    private String processRemoveHouseMax(Player player, List<Player> players, String header, String locationLine) {
+        // 找到房子最多的玩家
+        int maxHouses = 0;
+        List<Player> maxPlayers = new ArrayList<>();
+        
+        for (Player p : players) {
+            int houseCount = countTotalHouses(p);
+            if (houseCount > maxHouses) {
+                maxHouses = houseCount;
+                maxPlayers.clear();
+                maxPlayers.add(p);
+            } else if (houseCount == maxHouses) {
+                maxPlayers.add(p);
+            }
+        }
+        
+        if (maxHouses == 0) {
+            return "无人有房屋，无事发生";
+        }
+        
+        // 为所有房子最多的玩家拆一栋房子
+        for (Player p : maxPlayers) {
+            CountryTile tile = findCheapestCountryTile(p);
+            if (tile != null) {
+                PropertyState state = getPropertyState(tile.getPosition());
+                if (state.getHotelCount() > 0) {
+                    state.setHotelCount(state.getHotelCount() - 1);
+                    state.setHouseCount(4);
+                } else if (state.getHouseCount() > 0) {
+                    state.setHouseCount(state.getHouseCount() - 1);
+                }
+            }
+        }
+        
+        String names = maxPlayers.stream()
+                .map(Player::getName)
+                .collect(Collectors.joining("、"));
+        return names + "（房子最多）拆一栋房子";
+    }
+
+    private int countTotalHouses(Player player) {
+        int total = 0;
+        for (Integer pos : player.getOwnedTilePositions()) {
+            Tile tile = tileRepository.findByPosition(pos).orElse(null);
+            if (tile instanceof CountryTile) {
+                PropertyState state = getPropertyState(pos);
+                total += state.getHouseCount() + state.getHotelCount() * 5; // 旅馆算5栋房子
+            }
+        }
+        return total;
+    }
+
+    private CountryTile findMostExpensiveCountryTile(Player player) {
+        CountryTile best = null;
+        int maxPrice = 0;
+        for (Integer pos : player.getOwnedTilePositions()) {
+            Tile tile = tileRepository.findByPosition(pos).orElse(null);
+            if (tile instanceof CountryTile) {
+                CountryTile countryTile = (CountryTile) tile;
+                PropertyState state = getPropertyState(pos);
+                if (!state.isMortgaged() && state.canBuild()) {
+                    int price = countryTile.getBuildHouseCost();
+                    if (price > maxPrice) {
+                        maxPrice = price;
+                        best = countryTile;
+                    }
+                }
+            }
+        }
+        return best;
+    }
+
+    private CountryTile findCheapestCountryTile(Player player) {
+        CountryTile best = null;
+        int minPrice = Integer.MAX_VALUE;
+        for (Integer pos : player.getOwnedTilePositions()) {
+            Tile tile = tileRepository.findByPosition(pos).orElse(null);
+            if (tile instanceof CountryTile) {
+                CountryTile countryTile = (CountryTile) tile;
+                PropertyState state = getPropertyState(pos);
+                if (!state.isMortgaged() && (state.getHouseCount() > 0 || state.getHotelCount() > 0)) {
+                    int price = countryTile.getBuildHouseCost();
+                    if (price < minPrice) {
+                        minPrice = price;
+                        best = countryTile;
+                    }
+                }
+            }
+        }
+        return best;
+    }
+
+    /**
+     * 将技术性的效果字符串转换为用户友好的中文描述。
+     */
+    private String getEffectDescription(String effect) {
+        // 解析效果字符串（可能包含多个效果，用逗号分隔）
+        String[] effects = effect.split(",");
+        List<String> descriptions = new ArrayList<>();
+        
+        for (String eff : effects) {
+            eff = eff.trim();
+            if (eff.startsWith("lose:")) {
+                int amount = Integer.parseInt(eff.substring(5));
+                descriptions.add("花费 " + formatMoney(amount));
+            } else if (eff.startsWith("gain:")) {
+                int amount = Integer.parseInt(eff.substring(5));
+                descriptions.add("获得 " + formatMoney(amount));
+            } else if (eff.startsWith("pause:")) {
+                int turns = Integer.parseInt(eff.substring(6));
+                descriptions.add("下" + turns + "回合暂停行动");
+            } else if (eff.equals("goToJail")) {
+                descriptions.add("立刻坐牢");
+            } else if (eff.equals("jailCard")) {
+                descriptions.add("获得出狱许可证（可以保留或出售）");
+            } else if (eff.startsWith("go:")) {
+                String[] parts = eff.substring(3).split(",bonus:");
+                int targetPos = Integer.parseInt(parts[0]);
+                int bonus = parts.length > 1 ? Integer.parseInt(parts[1]) : 0;
+                String tileName = getTileName(targetPos);
+                if (bonus > 0) {
+                    descriptions.add("马上回到" + tileName + "并领取 " + formatMoney(bonus));
+                } else {
+                    descriptions.add("移动到 " + tileName);
+                }
+            } else if (eff.startsWith("fine:max:")) {
+                int amount = Integer.parseInt(eff.substring(9));
+                descriptions.add("现金最多的玩家罚 " + formatMoney(amount));
+            } else if (eff.startsWith("fine:near:")) {
+                String[] parts = eff.substring(10).split(":");
+                int targetPos = Integer.parseInt(parts[0]);
+                int amount = Integer.parseInt(parts[1]);
+                String tileName = getTileName(targetPos);
+                descriptions.add("最靠近" + tileName + "的玩家付 " + formatMoney(amount));
+            } else if (eff.startsWith("dice:max:")) {
+                int multiplier = Integer.parseInt(eff.substring(9));
+                descriptions.add("大家转转盘，点数最大的人拿取点数 × " + multiplier + " 的金额");
+            } else if (eff.equals("dice:move")) {
+                descriptions.add("捐 200 元再转转盘行动一次");
+            } else if (eff.equals("buildHouse:min")) {
+                descriptions.add("房子最少的玩家免费盖一栋");
+            } else if (eff.equals("removeHouse:max")) {
+                descriptions.add("房子最多的人拆一栋房子");
+            } else {
+                // 未知效果，显示原字符串
+                descriptions.add(eff);
+            }
+        }
+        
+        return String.join("，", descriptions);
     }
 }
 
