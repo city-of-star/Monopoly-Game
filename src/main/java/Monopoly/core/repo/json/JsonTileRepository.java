@@ -77,6 +77,7 @@ public class JsonTileRepository implements TileRepository {
         for (Map<String, Object> item : loader.loadCompanies()) {
             int position = ((Number) item.get("position")).intValue();
             tiles.put(position, new CompanyTile(position, (String) item.get("name"),
+                    ((Number) item.get("sellPrice")).intValue(),
                     ((Number) item.get("mortgagePrice")).intValue()));
         }
     }

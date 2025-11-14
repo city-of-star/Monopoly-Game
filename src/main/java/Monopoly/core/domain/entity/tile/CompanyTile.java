@@ -15,6 +15,10 @@ import lombok.Getter;
 public class CompanyTile extends Tile {
 
     /**
+     * 售价。
+     */
+    private final int sellPrice;
+    /**
      * 抵押价。
      */
     private final int mortgagePrice;
@@ -24,10 +28,12 @@ public class CompanyTile extends Tile {
      *
      * @param position 地块顺序
      * @param name 公司名称
+     * @param sellPrice 售价
      * @param mortgagePrice 抵押价
      */
-    public CompanyTile(int position, String name, int mortgagePrice) {
+    public CompanyTile(int position, String name, int sellPrice, int mortgagePrice) {
         super(position, name, TileType.COMPANY);
+        this.sellPrice = sellPrice;
         this.mortgagePrice = mortgagePrice;
     }
 }

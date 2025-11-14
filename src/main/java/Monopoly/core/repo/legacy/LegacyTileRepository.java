@@ -129,7 +129,8 @@ public class LegacyTileRepository implements TileRepository {
             System.out.println("[WARN] 位置 " + position + " 未找到公司数据 " + name);
             return;
         }
-        tiles.put(position, new CompanyTile(position, company.getCompanyName(), company.getMortgagePrice()));
+        // 公司购入价格为1500（legacy代码中没有sellPrice字段，使用硬编码）
+        tiles.put(position, new CompanyTile(position, company.getCompanyName(), 1500, company.getMortgagePrice()));
     }
 
     private SpecialTile createSpecialTile(int position, String name) {

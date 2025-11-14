@@ -51,6 +51,10 @@ public class Player {
      * 是否持有出狱卡。
      */
     private boolean hasJailReleasePermit;
+    /**
+     * 在监狱中剩余的回合数。0表示不在监狱中。
+     */
+    private int jailTurnsRemaining = 0;
 
     /**
      * 构造函数。
