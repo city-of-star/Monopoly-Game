@@ -76,7 +76,7 @@ public class SimpleTurnService implements TurnService {
 
         // 玩家回合开始时，检查是否有可赎回的地块（包括国家、公司、火车站）
         List<Tile> mortgagedTiles = getMortgagedTilesForPlayer(player);
-        if (!mortgagedTiles.isEmpty()) {
+        if (!mortgagedTiles.isEmpty() && canAffordAnyRedemption(player, mortgagedTiles)) {
             return new RedeemChoiceEvent(player, mortgagedTiles, turnCounter, fromName);
         }
 
@@ -1300,7 +1300,13 @@ public class SimpleTurnService implements TurnService {
                 prompt.append("  ").append(i + 1).append(" = ").append(t.getName())
                         .append("（抵押价值：").append(formatMoney(mortgageValue)).append("）\n");
             }
-            prompt.append("  0 = 破产（如果无法支付）\n请选择: ");
+            boolean allowBankruptcy = canOfferBankruptcyOption(player);
+            if (allowBankruptcy) {
+                prompt.append("  0 = 破产（如果无法支付）\n");
+            } else {
+                prompt.append("  0 = 返回（现金未耗尽，需继续抵押）\n");
+            }
+            prompt.append("请选择: ");
             
             int choice = decisionPort.requestInt(prompt.toString());
             String message;
@@ -1331,7 +1337,13 @@ public class SimpleTurnService implements TurnService {
                     return new TollPaymentPromptEvent(player, owner, tile, toll,
                             buildResultSummary("抵押结果", message + "\n还需要继续抵押。", player));
                 }
-            } else {
+            } else if (choice == 0) {
+                if (!allowBankruptcy) {
+                    String warning = "玩家 " + player.getName() + " 仍有现金 " + formatMoney(player.getMoney())
+                            + "，需先通过抵押筹集资金，不能立即破产。";
+                    return new TollPaymentPromptEvent(player, owner, tile, toll,
+                            buildResultSummary("抵押提示", warning, player));
+                }
                 // 选择破产
                 int paid = player.getMoney();
                 player.setMoney(0);
@@ -1356,6 +1368,10 @@ public class SimpleTurnService implements TurnService {
                 playerRepository.save(player);
                 String summary = buildResultSummary("破产", message, player);
                 return new TurnSummaryEvent(player, summary);
+            } else {
+                String warning = "无效的选项，请重新选择抵押方案。";
+                return new TollPaymentPromptEvent(player, owner, tile, toll,
+                        buildResultSummary("抵押提示", warning, player));
             }
         }
     }
@@ -1424,7 +1440,13 @@ public class SimpleTurnService implements TurnService {
                 prompt.append("  ").append(index++).append(" = ").append(t.getName())
                         .append("（抵押价值：").append(formatMoney(mortgageValue)).append("）\n");
             }
-            prompt.append("  0 = 破产（如果无法支付）\n请选择: ");
+            boolean allowBankruptcy = canOfferBankruptcyOption(player);
+            if (allowBankruptcy) {
+                prompt.append("  0 = 破产（如果无法支付）\n");
+            } else {
+                prompt.append("  0 = 返回（现金未耗尽，需继续抵押）\n");
+            }
+            prompt.append("请选择: ");
             
             int choice = decisionPort.requestInt(prompt.toString());
             String message;
@@ -1467,7 +1489,13 @@ public class SimpleTurnService implements TurnService {
                     return new TaxPaymentPromptEvent(player, tile, tax,
                             buildResultSummary("抵押结果", message + "\n还需要继续抵押。", player));
                 }
-            } else {
+            } else if (choice == 0) {
+                if (!allowBankruptcy) {
+                    String warning = "玩家 " + player.getName() + " 仍有现金 " + formatMoney(player.getMoney())
+                            + "，需先抵押资产，不能立即破产。";
+                    return new TaxPaymentPromptEvent(player, tile, tax,
+                            buildResultSummary("抵押提示", warning, player));
+                }
                 // 选择破产
                 int paid = player.getMoney();
                 player.setMoney(0);
@@ -1491,6 +1519,10 @@ public class SimpleTurnService implements TurnService {
                 playerRepository.save(player);
                 String summary = buildResultSummary("破产", message, player);
                 return new TurnSummaryEvent(player, summary);
+            } else {
+                String warning = "无效的选项，请重新选择抵押方案。";
+                return new TaxPaymentPromptEvent(player, tile, tax,
+                        buildResultSummary("抵押提示", warning, player));
             }
         }
     }
@@ -1566,7 +1598,13 @@ public class SimpleTurnService implements TurnService {
                 prompt.append("  ").append(index++).append(" = ").append(t.getName())
                         .append("（抵押价值：").append(formatMoney(mortgageValue)).append("）\n");
             }
-            prompt.append("  0 = 破产（如果无法支付）\n请选择: ");
+            boolean allowBankruptcy = canOfferBankruptcyOption(player);
+            if (allowBankruptcy) {
+                prompt.append("  0 = 破产（如果无法支付）\n");
+            } else {
+                prompt.append("  0 = 返回（现金未耗尽，需继续抵押）\n");
+            }
+            prompt.append("请选择: ");
             
             int choice = decisionPort.requestInt(prompt.toString());
             String message;
@@ -1619,7 +1657,13 @@ public class SimpleTurnService implements TurnService {
                     return new GenericPaymentPromptEvent(player, recipient, amount, description,
                             buildResultSummary("抵押结果", message + "\n还需要继续抵押。", player));
                 }
-            } else {
+            } else if (choice == 0) {
+                if (!allowBankruptcy) {
+                    String warning = "玩家 " + player.getName() + " 仍有现金 " + formatMoney(player.getMoney())
+                            + "，需先抵押资产，不能立即破产。";
+                    return new GenericPaymentPromptEvent(player, recipient, amount, description,
+                            buildResultSummary("抵押提示", warning, player));
+                }
                 // 选择破产
                 int paid = player.getMoney();
                 player.setMoney(0);
@@ -1647,6 +1691,10 @@ public class SimpleTurnService implements TurnService {
                 playerRepository.save(player);
                 String summary = buildResultSummary("破产", message, player);
                 return new TurnSummaryEvent(player, summary);
+            } else {
+                String warning = "无效的选项，请重新选择抵押方案。";
+                return new GenericPaymentPromptEvent(player, recipient, amount, description,
+                        buildResultSummary("抵押提示", warning, player));
             }
         }
     }
@@ -1834,7 +1882,13 @@ public class SimpleTurnService implements TurnService {
                 prompt.append("  ").append(index++).append(" = ").append(t.getName())
                         .append("（抵押价值：").append(formatMoney(mortgageValue)).append("）\n");
             }
-            prompt.append("  0 = 破产（如果无法支付）\n请选择: ");
+            boolean allowBankruptcy = canOfferBankruptcyOption(player);
+            if (allowBankruptcy) {
+                prompt.append("  0 = 破产（如果无法支付）\n");
+            } else {
+                prompt.append("  0 = 返回（现金未耗尽，需继续抵押）\n");
+            }
+            prompt.append("请选择: ");
             
             int choice = decisionPort.requestInt(prompt.toString());
             String message;
@@ -1889,7 +1943,13 @@ public class SimpleTurnService implements TurnService {
                     return new TrainStationTollPaymentPromptEvent(player, owner, tile, toll,
                             buildResultSummary("抵押结果", message + "\n还需要继续抵押。", player));
                 }
-            } else {
+            } else if (choice == 0) {
+                if (!allowBankruptcy) {
+                    String warning = "玩家 " + player.getName() + " 仍有现金 " + formatMoney(player.getMoney())
+                            + "，需先抵押资产，不能立即破产。";
+                    return new TrainStationTollPaymentPromptEvent(player, owner, tile, toll,
+                            buildResultSummary("抵押提示", warning, player));
+                }
                 // 选择破产
                 int paid = player.getMoney();
                 player.setMoney(0);
@@ -1914,6 +1974,10 @@ public class SimpleTurnService implements TurnService {
                 playerRepository.save(player);
                 String summary = buildResultSummary("破产", message, player);
                 return new TurnSummaryEvent(player, summary);
+            } else {
+                String warning = "无效的选项，请重新选择抵押方案。";
+                return new TrainStationTollPaymentPromptEvent(player, owner, tile, toll,
+                        buildResultSummary("抵押提示", warning, player));
             }
         }
     }
@@ -1946,6 +2010,22 @@ public class SimpleTurnService implements TurnService {
                     return state.isMortgaged();
                 })
                 .collect(Collectors.toList());
+    }
+
+    private boolean canAffordAnyRedemption(Player player, List<Tile> mortgagedTiles) {
+        int cash = player.getMoney();
+        for (Tile tile : mortgagedTiles) {
+            PropertyState state = getPropertyState(tile.getPosition());
+            int redeemCost = calculateRedeemCost(tile, state);
+            if (state.isMortgaged() && cash >= redeemCost) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean canOfferBankruptcyOption(Player player) {
+        return player.getMoney() <= 0;
     }
 
     /**
@@ -2298,7 +2378,13 @@ public class SimpleTurnService implements TurnService {
                 prompt.append("  ").append(index++).append(" = ").append(t.getName())
                         .append("（抵押价值：").append(formatMoney(mortgageValue)).append("）\n");
             }
-            prompt.append("  0 = 破产（如果无法支付）\n请选择: ");
+            boolean allowBankruptcy = canOfferBankruptcyOption(player);
+            if (allowBankruptcy) {
+                prompt.append("  0 = 破产（如果无法支付）\n");
+            } else {
+                prompt.append("  0 = 返回（现金未耗尽，需继续抵押）\n");
+            }
+            prompt.append("请选择: ");
             
             int choice = decisionPort.requestInt(prompt.toString());
             String message;
@@ -2343,7 +2429,13 @@ public class SimpleTurnService implements TurnService {
                     return new CompanyTollPaymentPromptEvent(player, owner, tile, toll,
                             buildResultSummary("抵押结果", message + "\n还需要继续抵押。", player));
                 }
-            } else {
+            } else if (choice == 0) {
+                if (!allowBankruptcy) {
+                    String warning = "玩家 " + player.getName() + " 仍有现金 " + formatMoney(player.getMoney())
+                            + "，需先抵押资产，不能立即破产。";
+                    return new CompanyTollPaymentPromptEvent(player, owner, tile, toll,
+                            buildResultSummary("抵押提示", warning, player));
+                }
                 // 选择破产
                 int paid = player.getMoney();
                 player.setMoney(0);
@@ -2368,6 +2460,10 @@ public class SimpleTurnService implements TurnService {
                 playerRepository.save(player);
                 String summary = buildResultSummary("破产", message, player);
                 return new TurnSummaryEvent(player, summary);
+            } else {
+                String warning = "无效的选项，请重新选择抵押方案。";
+                return new CompanyTollPaymentPromptEvent(player, owner, tile, toll,
+                        buildResultSummary("抵押提示", warning, player));
             }
         }
     }
@@ -2633,24 +2729,22 @@ public class SimpleTurnService implements TurnService {
             return "无人有房屋，无事发生";
         }
         
-        // 为所有房子最多的玩家拆一栋房子
+        List<String> removalDetails = new ArrayList<>();
+        // 为所有房子最多的玩家拆掉最便宜的一栋房子（不拆旅馆）
         for (Player p : maxPlayers) {
-            CountryTile tile = findCheapestCountryTile(p);
+            CountryTile tile = findCheapestHouseTile(p);
             if (tile != null) {
                 PropertyState state = getPropertyState(tile.getPosition());
-                if (state.getHotelCount() > 0) {
-                    state.setHotelCount(state.getHotelCount() - 1);
-                    state.setHouseCount(4);
-                } else if (state.getHouseCount() > 0) {
-                    state.setHouseCount(state.getHouseCount() - 1);
-                }
+                state.setHouseCount(state.getHouseCount() - 1);
+                removalDetails.add(p.getName() + "（房子最多）拆掉 [" + tile.getName() + "] 的最便宜房子");
             }
         }
         
-        String names = maxPlayers.stream()
-                .map(Player::getName)
-                .collect(Collectors.joining("、"));
-        return names + "（房子最多）拆一栋房子";
+        if (removalDetails.isEmpty()) {
+            return "无人拥有可拆除的房屋，事件被忽略";
+        }
+        
+        return String.join("；", removalDetails);
     }
 
     private int countTotalHouses(Player player) {
@@ -2685,7 +2779,7 @@ public class SimpleTurnService implements TurnService {
         return best;
     }
 
-    private CountryTile findCheapestCountryTile(Player player) {
+    private CountryTile findCheapestHouseTile(Player player) {
         CountryTile best = null;
         int minPrice = Integer.MAX_VALUE;
         for (Integer pos : player.getOwnedTilePositions()) {
@@ -2693,7 +2787,7 @@ public class SimpleTurnService implements TurnService {
             if (tile instanceof CountryTile) {
                 CountryTile countryTile = (CountryTile) tile;
                 PropertyState state = getPropertyState(pos);
-                if (!state.isMortgaged() && (state.getHouseCount() > 0 || state.getHotelCount() > 0)) {
+                if (!state.isMortgaged() && state.getHouseCount() > 0) {
                     int price = countryTile.getBuildHouseCost();
                     if (price < minPrice) {
                         minPrice = price;

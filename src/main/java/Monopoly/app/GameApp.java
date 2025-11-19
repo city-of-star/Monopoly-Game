@@ -54,8 +54,11 @@ public class GameApp {
             GameEvent event = turnService.advanceTurn();
             GameEvent current = event;
             while (current != null) {
-                GameMessage message = new GameMessage(current.getType(), current.toString(), current);
-                outputPort.publish(message);
+                String content = current.toString();
+                if (content != null && !content.isBlank()) {
+                    GameMessage message = new GameMessage(current.getType(), content, current);
+                    outputPort.publish(message);
+                }
                 if (current instanceof InteractiveEvent interactive) {
                     current = interactive.interact();
                 } else {
