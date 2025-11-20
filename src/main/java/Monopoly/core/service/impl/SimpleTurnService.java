@@ -228,8 +228,7 @@ public class SimpleTurnService implements TurnService {
         if (ownerId == null) {
             // 无人持有，可以购买
             int price = tile.getSellPrice();
-            String body = "该火车站无人持有，售价 " + formatMoney(price)
-                    + "，抵押价格 " + formatMoney(tile.getMortgagePrice()) + "。";
+            String body = "该火车站无人持有";
             String preMessage = buildPurchaseSummary(header, locationLine, body);
             return new TrainStationPurchasePromptEvent(player, tile, preMessage);
         }
@@ -320,8 +319,7 @@ public class SimpleTurnService implements TurnService {
         if (ownerId == null) {
             // 无人持有，可以购买
             int price = tile.getSellPrice();
-            String body = "该公司无人持有，售价 " + formatMoney(price)
-                    + "，抵押价格 " + formatMoney(tile.getMortgagePrice()) + "。";
+            String body = "该公司无人持有";
             String preMessage = buildPurchaseSummary(header, locationLine, body);
             return new CompanyPurchasePromptEvent(player, tile, preMessage);
         }
@@ -568,12 +566,12 @@ public class SimpleTurnService implements TurnService {
 
     private String describeAssets(Player player) {
         StringBuilder sb = new StringBuilder();
-        sb.append("————————————————————");
-        sb.append("\n|💰 资产概览\n");
-        sb.append("|💵 现金：").append(formatMoney(player.getMoney())).append("\n");
-        sb.append("|🏘️ 地产：");
+        sb.append("\n┌────────────────────────────┐\n");
+        sb.append("│ 💰 资产概览\n");
+        sb.append("│ 💵 现金：").append(formatMoney(player.getMoney())).append("\n");
+        sb.append("│ 🏘️ 地产：");
         if (player.getOwnedTilePositions().isEmpty()) {
-            sb.append("无");
+            sb.append("无\n");
         } else {
             sb.append("\n");
             player.getOwnedTilePositions().stream()
@@ -595,13 +593,10 @@ public class SimpleTurnService implements TurnService {
                                 }
                             }
                         }
-                        sb.append("|   • ").append(tileName).append("\n");
+                        sb.append("│    • ").append(tileName).append("\n");
                     });
-            if (sb.length() > 0 && sb.charAt(sb.length() - 1) == '\n') {
-                sb.deleteCharAt(sb.length() - 1);
-            }
         }
-        sb.append("\n————————————————————");
+        sb.append("└────────────────────────────┘");
         return sb.toString();
     }
 
@@ -690,7 +685,7 @@ public class SimpleTurnService implements TurnService {
         if (locationLine != null && !locationLine.isBlank()) {
             // 如果 locationLine 包含 "落点："，优化格式
             if (locationLine.contains("落点：")) {
-                sb.append("📍 ").append(locationLine);
+                sb.append("📌 ").append(locationLine);
             } else {
                 sb.append(locationLine);
             }
@@ -707,7 +702,7 @@ public class SimpleTurnService implements TurnService {
         if (locationLine != null && !locationLine.isBlank()) {
             // 如果 locationLine 包含 "落点："，优化格式
             if (locationLine.contains("落点：")) {
-                sb.append("📍 ").append(locationLine);
+                sb.append("📌 ").append(locationLine);
             } else {
                 sb.append(locationLine);
             }
@@ -2701,15 +2696,36 @@ public class SimpleTurnService implements TurnService {
     }
 
     private String processFineMax(Player player, List<Player> players, int amount, String header, String locationLine) {
-        Player maxPlayer = players.stream()
-                .max(Comparator.comparingInt(Player::getMoney))
-                .orElse(null);
-        if (maxPlayer != null && maxPlayer.getMoney() >= amount) {
-            payMoney(maxPlayer, amount);
-            playerRepository.save(maxPlayer);
-            return maxPlayer.getName() + "（现金最多）被罚款 " + formatMoney(amount);
+        if (players.isEmpty()) {
+            return "无人被罚款";
         }
-        return "无人被罚款";
+        int maxMoney = players.stream()
+                .mapToInt(Player::getMoney)
+                .max()
+                .orElse(0);
+        long distinctCash = players.stream()
+                .map(Player::getMoney)
+                .distinct()
+                .count();
+        if (distinctCash == 1) {
+            return "所有玩家现金相同，罚款取消";
+        }
+        List<Player> richestPlayers = players.stream()
+                .filter(p -> p.getMoney() == maxMoney)
+                .collect(Collectors.toList());
+        List<String> finedNames = new ArrayList<>();
+        for (Player rich : richestPlayers) {
+            if (rich.getMoney() >= amount) {
+                payMoney(rich, amount);
+                playerRepository.save(rich);
+                finedNames.add(rich.getName());
+            }
+        }
+        if (finedNames.isEmpty()) {
+            return "无人被罚款";
+        }
+        String names = String.join("、", finedNames);
+        return names + "（现金最多）被罚款 " + formatMoney(amount);
     }
 
     private String processFineNear(Player player, List<Player> players, int targetPos, int amount, String header, String locationLine) {
