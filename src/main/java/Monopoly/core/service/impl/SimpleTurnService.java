@@ -566,7 +566,7 @@ public class SimpleTurnService implements TurnService {
 
     private String describeAssets(Player player) {
         StringBuilder sb = new StringBuilder();
-        sb.append("\n┌────────────────────────────┐\n");
+        sb.append("\n┌────────────────────────────\n");
         sb.append("│ 💰 资产概览\n");
         sb.append("│ 💵 现金：").append(formatMoney(player.getMoney())).append("\n");
         sb.append("│ 🏘️ 地产：");
@@ -596,7 +596,7 @@ public class SimpleTurnService implements TurnService {
                         sb.append("│    • ").append(tileName).append("\n");
                     });
         }
-        sb.append("└────────────────────────────┘");
+        sb.append("└────────────────────────────");
         return sb.toString();
     }
 
@@ -2675,6 +2675,20 @@ public class SimpleTurnService implements TurnService {
             } else if (eff.equals("removeHouse:max")) {
                 // 房子最多的玩家拆一栋
                 resultMessages.add(processRemoveHouseMax(player, players, header, locationLine));
+            } else if (eff.startsWith("payEach:")) {
+                int amount = Integer.parseInt(eff.substring(8));
+                resultMessages.add(processPayEach(player, players, amount));
+            } else if (eff.startsWith("collectEach:")) {
+                int amount = Integer.parseInt(eff.substring(12));
+                resultMessages.add(processCollectEach(player, players, amount));
+            } else if (eff.startsWith("propertyFine:")) {
+                String[] parts = eff.substring(13).split(":");
+                int houseFine = Integer.parseInt(parts[0]);
+                int hotelFine = parts.length > 1 ? Integer.parseInt(parts[1]) : houseFine;
+                resultMessages.add(processPropertyFine(player, houseFine, hotelFine));
+            } else if (eff.startsWith("movePass:")) {
+                int targetPos = Integer.parseInt(eff.substring(9));
+                resultMessages.add(processMoveWithPassGo(player, targetPos));
             }
         }
         
@@ -2865,6 +2879,84 @@ public class SimpleTurnService implements TurnService {
         }
         
         return String.join(" || ", removalDetails);
+    }
+
+    private String processPayEach(Player player, List<Player> players, int amount) {
+        List<Player> others = players.stream()
+                .filter(p -> p.getId() != player.getId())
+                .toList();
+        if (others.isEmpty()) {
+            return "没有其他玩家，无需支付";
+        }
+        int total = amount * others.size();
+        if (player.getMoney() < total) {
+            return "需向每位玩家支付 " + formatMoney(amount) + "（共 " + formatMoney(total) + "），但现金不足("
+                    + formatMoney(player.getMoney()) + ")";
+        }
+        payMoney(player, total);
+        playerRepository.save(player);
+        others.forEach(p -> {
+            p.setMoney(p.getMoney() + amount);
+            playerRepository.save(p);
+        });
+        String names = others.stream().map(Player::getName).collect(Collectors.joining("、"));
+        return "向 " + names + " 各支付 " + formatMoney(amount) + "（共 " + formatMoney(total) + "），现金："
+                + formatMoney(player.getMoney());
+    }
+
+    private String processCollectEach(Player player, List<Player> players, int amount) {
+        List<Player> payers = players.stream()
+                .filter(p -> p.getId() != player.getId())
+                .filter(p -> p.getMoney() >= amount)
+                .toList();
+        if (payers.isEmpty()) {
+            return "其他玩家现金不足，无人支付";
+        }
+        for (Player p : payers) {
+            payMoney(p, amount);
+            playerRepository.save(p);
+        }
+        int total = amount * payers.size();
+        player.setMoney(player.getMoney() + total);
+        playerRepository.save(player);
+        String names = payers.stream().map(Player::getName).collect(Collectors.joining("、"));
+        return names + " 各支付 " + formatMoney(amount) + "，共收到 " + formatMoney(total) + "，现金：" + formatMoney(player.getMoney());
+    }
+
+    private String processPropertyFine(Player player, int houseFine, int hotelFine) {
+        int houses = 0;
+        int hotels = 0;
+        for (Integer pos : player.getOwnedTilePositions()) {
+            Tile tile = tileRepository.findByPosition(pos).orElse(null);
+            if (tile instanceof CountryTile) {
+                PropertyState state = getPropertyState(pos);
+                houses += state.getHouseCount();
+                hotels += state.getHotelCount();
+            }
+        }
+        if (houses == 0 && hotels == 0) {
+            return "没有房屋或旅馆，无需支付罚款";
+        }
+        int total = houses * houseFine + hotels * hotelFine;
+        if (player.getMoney() >= total) {
+            payMoney(player, total);
+            playerRepository.save(player);
+            return "按房屋/旅馆罚款 " + formatMoney(total) + "（房屋 " + houses + " 栋，旅馆 " + hotels + " 座）";
+        }
+        return "需按房屋/旅馆支付 " + formatMoney(total) + "（房屋 " + houses + " 栋，旅馆 " + hotels + " 座），但现金不足("
+                + formatMoney(player.getMoney()) + ")";
+    }
+
+    private String processMoveWithPassGo(Player player, int targetPos) {
+        int oldPos = player.getPosition();
+        boolean passedGo = targetPos < oldPos;
+        player.setPosition(targetPos);
+        if (passedGo) {
+            player.setMoney(player.getMoney() + 2000);
+        }
+        playerRepository.save(player);
+        String tileName = getTileName(targetPos);
+        return "移动到 " + tileName + (passedGo ? "，经过起点领取 2000元" : "");
     }
 
     private int countTotalHouses(Player player) {
