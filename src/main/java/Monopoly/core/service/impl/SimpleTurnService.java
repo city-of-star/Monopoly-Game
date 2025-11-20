@@ -618,7 +618,7 @@ public class SimpleTurnService implements TurnService {
 
     private String buildTurnHeader(int turn, Player player, int dice,
                                    int oldPos, String fromName, int newPos, String toName) {
-        return "==================== 回合 " + turn + " ====================\n"
+        return "============================ 回合 " + turn + " =============================\n"
                 + "玩家：" + player.getName() + "\n"
                 + "掷骰：" + dice + "\n"
                 + "移动：" + fromName + " -> " + toName + "\n\n";
@@ -626,7 +626,7 @@ public class SimpleTurnService implements TurnService {
 
     private String buildPausedSummary(int turn, Player player, String tileName, int position) {
         StringBuilder sb = new StringBuilder();
-        sb.append("==================== 回合 ").append(turn).append(" ====================\n");
+        sb.append("============================ 回合 ").append(turn).append(" =============================\n");
         sb.append("玩家：").append(player.getName()).append("\n");
         sb.append("状态：暂停一回合\n");
         sb.append("当前位置：").append(tileName).append("\n\n");
@@ -637,7 +637,7 @@ public class SimpleTurnService implements TurnService {
 
     private String buildJailSummary(int turn, Player player, String tileName, int position, int remainingTurns) {
         StringBuilder sb = new StringBuilder();
-        sb.append("==================== 回合 ").append(turn).append(" ====================\n");
+        sb.append("============================ 回合 ").append(turn).append(" =============================\n");
         sb.append("玩家：").append(player.getName()).append("\n");
         sb.append("状态：在监狱中（剩余 ").append(remainingTurns).append(" 回合）\n");
         sb.append("当前位置：").append(tileName).append("\n\n");
@@ -932,7 +932,7 @@ public class SimpleTurnService implements TurnService {
 
         RedeemChoiceEvent(Player player, List<Tile> mortgagedTiles, int turn, String fromName) {
             super(String.valueOf(player.getId()), 
-                    "==================== 回合 " + turn + " ====================\n"
+                    "============================ 回合 " + turn + " =============================\n"
                     + "玩家：" + player.getName() + "\n"
                     + "您有 " + mortgagedTiles.size() + " 块已抵押的地块可以赎回。\n");
             this.player = player;
