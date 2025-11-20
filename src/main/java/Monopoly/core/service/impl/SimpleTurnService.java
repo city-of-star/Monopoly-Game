@@ -131,7 +131,7 @@ public class SimpleTurnService implements TurnService {
                     // 钱够，直接支付
                     payMoney(player, tax);
                     playerRepository.save(player);
-                    String detail = "支付税费 " + formatMoney(tax) + "，现金：" + formatMoney(player.getMoney());
+                    String detail = "支付税费 " + formatMoney(tax);
                     yield new TurnSummaryEvent(player, buildSummary(header, locationLine, detail, player));
                 } else {
                     // 钱不够，需要抵押或破产
@@ -171,10 +171,8 @@ public class SimpleTurnService implements TurnService {
         if (ownerId == null) {
             int price = tile.getSellPrice();
             String body = "该国家无人持有，售价 " + formatMoney(price)
-                    + "，基础过路费 " + formatMoney(tile.getBaseToll())
-                    + "。\n当前现金：" + formatMoney(player.getMoney())
-                    + "，稍后将询问是否购买。";
-            String preMessage = buildSummary(header, locationLine, body, player);
+                    + "，基础过路费 " + formatMoney(tile.getBaseToll()) + "。";
+            String preMessage = buildPurchaseSummary(header, locationLine, body);
             return new PurchasePromptEvent(player, tile, preMessage);
         }
         if (ownerId.equals(player.getId())) {
@@ -232,10 +230,8 @@ public class SimpleTurnService implements TurnService {
             // 无人持有，可以购买
             int price = tile.getSellPrice();
             String body = "该火车站无人持有，售价 " + formatMoney(price)
-                    + "，抵押价格 " + formatMoney(tile.getMortgagePrice())
-                    + "。\n当前现金：" + formatMoney(player.getMoney())
-                    + "，稍后将询问是否购买。";
-            String preMessage = buildSummary(header, locationLine, body, player);
+                    + "，抵押价格 " + formatMoney(tile.getMortgagePrice()) + "。";
+            String preMessage = buildPurchaseSummary(header, locationLine, body);
             return new TrainStationPurchasePromptEvent(player, tile, preMessage);
         }
         if (ownerId.equals(player.getId())) {
@@ -326,10 +322,8 @@ public class SimpleTurnService implements TurnService {
             // 无人持有，可以购买
             int price = tile.getSellPrice();
             String body = "该公司无人持有，售价 " + formatMoney(price)
-                    + "，抵押价格 " + formatMoney(tile.getMortgagePrice())
-                    + "。\n当前现金：" + formatMoney(player.getMoney())
-                    + "，稍后将询问是否购买。";
-            String preMessage = buildSummary(header, locationLine, body, player);
+                    + "，抵押价格 " + formatMoney(tile.getMortgagePrice()) + "。";
+            String preMessage = buildPurchaseSummary(header, locationLine, body);
             return new CompanyPurchasePromptEvent(player, tile, preMessage);
         }
         if (ownerId.equals(player.getId())) {
@@ -437,9 +431,10 @@ public class SimpleTurnService implements TurnService {
         @Override
         public GameEvent interact() {
             int price = tile.getSellPrice();
-            String prompt = "\n[购地选择] " + player.getName() + " 当前现金 " + formatMoney(player.getMoney())
-                    + "，是否以 " + formatMoney(price) + " 购买 [" + tile.getName() + "]？"
-                    + "（基础过路费 " + formatMoney(tile.getBaseToll()) + "，1=购买，0=放弃）: ";
+            String prompt = "🛒 购地选择\n"
+                    + "地块：[" + tile.getName() + "]  " + formatMoney(price) + "/" + tile.getBaseToll() + "元（价格/基础过路费）\n"
+                    + "当前现金：💰" + formatMoney(player.getMoney()) + "\n"
+                    + "请选择(1=购买，0=放弃)：";
             int choice = decisionPort.requestInt(prompt);
             String message;
             if (choice == 1) {
@@ -447,10 +442,8 @@ public class SimpleTurnService implements TurnService {
                     payMoney(player, price);
                     tileOwners.put(tile.getPosition(), player.getId());
                     player.addOwnedTile(tile.getPosition());
-                    message = "玩家 " + player.getName() + " 以 " + formatMoney(price)
-                            + " 购入 [" + tile.getName() + "]。";
                     playerRepository.save(player);
-                    String summary = buildResultSummary("购地结果", message, player);
+                    String summary = "✅ 购买成功";
                     return new TurnSummaryEvent(player, summary);
                 } else {
                     // 钱不够，需要抵押
@@ -484,7 +477,7 @@ public class SimpleTurnService implements TurnService {
         @Override
         public GameEvent interact() {
             int price = tile.getSellPrice();
-            String prompt = "\n[购买公司] " + player.getName() + " 当前现金 " + formatMoney(player.getMoney())
+            String prompt = "[购买公司] " + player.getName() + " 当前现金 " + formatMoney(player.getMoney())
                     + "，是否以 " + formatMoney(price) + " 购买 [" + tile.getName() + "]？"
                     + "（抵押价格 " + formatMoney(tile.getMortgagePrice()) + "，1=购买，0=放弃）: ";
             int choice = decisionPort.requestInt(prompt);
@@ -494,10 +487,8 @@ public class SimpleTurnService implements TurnService {
                     payMoney(player, price);
                     tileOwners.put(tile.getPosition(), player.getId());
                     player.addOwnedTile(tile.getPosition());
-                    message = "玩家 " + player.getName() + " 以 " + formatMoney(price)
-                            + " 购入 [" + tile.getName() + "]。";
                     playerRepository.save(player);
-                    String summary = buildResultSummary("购买公司结果", message, player);
+                    String summary = "✅ 购买成功";
                     return new TurnSummaryEvent(player, summary);
                 } else {
                     // 钱不够，需要抵押
@@ -581,93 +572,147 @@ public class SimpleTurnService implements TurnService {
 
     private String describeAssets(Player player) {
         StringBuilder sb = new StringBuilder();
-        sb.append("- 现金：").append(formatMoney(player.getMoney())).append("\n");
-        sb.append("- 地产：");
+        sb.append("\n💰 资产概览\n");
+        sb.append("💵 现金：").append(formatMoney(player.getMoney())).append("\n");
+        sb.append("🏘️ 地产：");
         if (player.getOwnedTilePositions().isEmpty()) {
             sb.append("无");
         } else {
-            String owned = player.getOwnedTilePositions().stream()
+            sb.append("\n");
+            player.getOwnedTilePositions().stream()
                     .sorted()
-                    .map(pos -> {
+                    .forEach(pos -> {
                         Tile tile = tileRepository.findByPosition(pos).orElse(null);
+                        String tileName;
                         if (tile == null) {
-                            return "格" + pos;
-                        }
-                        String tileName = tile.getName();
-                        // 如果是国家地块，显示房屋或旅馆数量
-                        if (tile instanceof CountryTile) {
-                            PropertyState state = getPropertyState(pos);
-                            if (state.getHotelCount() > 0) {
-                                tileName += "（" + state.getHotelCount() + "旅馆）";
-                            } else if (state.getHouseCount() > 0) {
-                                tileName += "（" + state.getHouseCount() + "房屋）";
+                            tileName = "格" + pos;
+                        } else {
+                            tileName = tile.getName();
+                            // 如果是国家地块，显示房屋或旅馆数量
+                            if (tile instanceof CountryTile) {
+                                PropertyState state = getPropertyState(pos);
+                                if (state.getHotelCount() > 0) {
+                                    tileName += "（" + state.getHotelCount() + "旅馆）";
+                                } else if (state.getHouseCount() > 0) {
+                                    tileName += "（" + state.getHouseCount() + "房屋）";
+                                }
                             }
                         }
-                        return tileName;
-                    })
-                    .reduce((a, b) -> a + "，" + b)
-                    .orElse("无");
-            sb.append(owned);
+                        sb.append("   • ").append(tileName);
+                    });
         }
         return sb.toString();
     }
 
     private String formatMoney(int amount) {
-        return amount + "元";
+        return String.format("%,d", amount) + "元";
     }
 
     private String buildTurnHeader(int turn, Player player, int dice,
                                    int oldPos, String fromName, int newPos, String toName) {
-        return "============================ 回合 " + turn + " =============================\n"
-                + "玩家：" + player.getName() + "\n"
-                + "掷骰：" + dice + "\n"
-                + "移动：" + fromName + " -> " + toName + "\n\n";
+        String separator = "═".repeat(64);
+        return separator + "\n"
+                + "🎲 第 " + turn + " 回合  |  👤 玩家：" + player.getName() + "\n"
+                + separator + "\n"
+                + "🎲 掷骰结果：" + dice + " 点\n"
+                + "📍 移动路径：" + fromName + " ──→ " + toName + "\n\n";
     }
 
     private String buildPausedSummary(int turn, Player player, String tileName, int position) {
+        String separator = "═".repeat(64);
         StringBuilder sb = new StringBuilder();
-        sb.append("============================ 回合 ").append(turn).append(" =============================\n");
-        sb.append("玩家：").append(player.getName()).append("\n");
-        sb.append("状态：暂停一回合\n");
-        sb.append("当前位置：").append(tileName).append("\n\n");
-        sb.append("事件：玩家被暂停，跳过本次行动。\n\n");
-        sb.append("资产概览：\n").append(describeAssets(player));
+        sb.append(separator).append("\n");
+        sb.append("🎲 第 ").append(turn).append(" 回合  |  👤 玩家：").append(player.getName()).append("\n");
+        sb.append(separator).append("\n");
+        sb.append("⏸️  状态：暂停一回合\n");
+        sb.append("📍 当前位置：").append(tileName).append("\n\n");
+        sb.append("⚠️  事件：玩家被暂停，跳过本次行动。\n\n");
+        sb.append(describeAssets(player));
         return sb.toString();
     }
 
     private String buildJailSummary(int turn, Player player, String tileName, int position, int remainingTurns) {
+        String separator = "═".repeat(64);
         StringBuilder sb = new StringBuilder();
-        sb.append("============================ 回合 ").append(turn).append(" =============================\n");
-        sb.append("玩家：").append(player.getName()).append("\n");
-        sb.append("状态：在监狱中（剩余 ").append(remainingTurns).append(" 回合）\n");
-        sb.append("当前位置：").append(tileName).append("\n\n");
+        sb.append(separator).append("\n");
+        sb.append("🎲 第 ").append(turn).append(" 回合  |  👤 玩家：").append(player.getName()).append("\n");
+        sb.append(separator).append("\n");
+        sb.append("⛓️  状态：在监狱中（剩余 ").append(remainingTurns).append(" 回合）\n");
+        sb.append("📍 当前位置：").append(tileName).append("\n\n");
         if (remainingTurns > 1) {
-            sb.append("事件：玩家在监狱中，无法行动，只能展示基本信息。\n\n");
+            sb.append("⚠️  事件：玩家在监狱中，无法行动，只能展示基本信息。\n\n");
         } else {
-            sb.append("事件：玩家在监狱中，这是最后一回合，下回合可以正常行动。\n\n");
+            sb.append("⚠️  事件：玩家在监狱中，这是最后一回合，下回合可以正常行动。\n\n");
         }
-        sb.append("资产概览：\n").append(describeAssets(player));
+        sb.append(describeAssets(player));
+        return sb.toString();
+    }
+
+    /**
+     * 构建购地提示的摘要（不包含资产概览，因为购地选择中已有）。
+     */
+    private String buildPurchaseSummary(String header, String locationLine, String body) {
+        StringBuilder sb = new StringBuilder();
+        sb.append(header);
+        if (locationLine != null && !locationLine.isBlank()) {
+            // 如果 locationLine 包含 "落点："，优化格式
+            if (locationLine.contains("落点：")) {
+                sb.append("📍 ").append(locationLine);
+            } else {
+                sb.append(locationLine);
+            }
+        }
+        if (body != null && !body.isBlank()) {
+            sb.append("🏠 事件：").append(body).append("\n");
+        }
         return sb.toString();
     }
 
     private String buildSummary(String header, String locationLine, String body, Player player) {
         StringBuilder sb = new StringBuilder();
         sb.append(header);
-        sb.append(locationLine);
-        if (body != null && !body.isBlank()) {
-            sb.append("事件：").append(body).append("\n");
+        if (locationLine != null && !locationLine.isBlank()) {
+            // 如果 locationLine 包含 "落点："，优化格式
+            if (locationLine.contains("落点：")) {
+                sb.append("📍 ").append(locationLine);
+            } else {
+                sb.append(locationLine);
+            }
         }
-        sb.append("\n资产概览：\n").append(describeAssets(player));
+        if (body != null && !body.isBlank()) {
+            // 根据内容判断事件类型并添加相应图标
+            String eventIcon = "📋";
+            if (body.contains("购买") || body.contains("购地")) {
+                eventIcon = "🏠";
+            } else if (body.contains("支付") || body.contains("过路费")) {
+                eventIcon = "💸";
+            } else if (body.contains("奖励") || body.contains("获得")) {
+                eventIcon = "💰";
+            } else if (body.contains("抽卡") || body.contains("卡牌")) {
+                eventIcon = "🎴";
+            } else if (body.contains("警告") || body.contains("不足")) {
+                eventIcon = "⚠️ ";
+            }
+            sb.append(eventIcon).append(" 事件：").append(body).append("\n");
+        }
+        sb.append(describeAssets(player));
         return sb.toString();
     }
 
     private String buildResultSummary(String title, String body, Player player) {
         StringBuilder sb = new StringBuilder();
-        sb.append(">>>> ").append(title).append(" <<<<\n");
+        // 根据标题判断结果类型
+        String resultIcon = "✅";
+        if (title.contains("失败") || title.contains("无法")) {
+            resultIcon = "❌";
+        } else if (title.contains("警告")) {
+            resultIcon = "⚠️ ";
+        }
+        sb.append(resultIcon).append(" ").append(title).append("\n");
         if (body != null && !body.isBlank()) {
             sb.append(body).append("\n");
         }
-        sb.append("\n资产概览：\n").append(describeAssets(player));
+        sb.append("\n").append(describeAssets(player));
         return sb.toString();
     }
 
@@ -932,9 +977,10 @@ public class SimpleTurnService implements TurnService {
 
         RedeemChoiceEvent(Player player, List<Tile> mortgagedTiles, int turn, String fromName) {
             super(String.valueOf(player.getId()), 
-                    "============================ 回合 " + turn + " =============================\n"
-                    + "玩家：" + player.getName() + "\n"
-                    + "您有 " + mortgagedTiles.size() + " 块已抵押的地块可以赎回。\n");
+                    "═".repeat(64) + "\n"
+                    + "🎲 第 " + turn + " 回合  |  👤 玩家：" + player.getName() + "\n"
+                    + "═".repeat(64) + "\n"
+                    + "💳 您有 " + mortgagedTiles.size() + " 块已抵押的地块可以赎回。\n");
             this.player = player;
             this.mortgagedTiles = mortgagedTiles;
             this.turn = turn;
@@ -944,16 +990,18 @@ public class SimpleTurnService implements TurnService {
         @Override
         public GameEvent interact() {
             StringBuilder prompt = new StringBuilder();
-            prompt.append("\n[赎回选择] ").append(player.getName()).append(" 当前现金 ").append(formatMoney(player.getMoney()));
-            prompt.append("\n已抵押的地块：\n");
+            prompt.append("\n💳 赎回选择\n");
+            prompt.append("当前现金：💰").append(formatMoney(player.getMoney())).append("\n\n");
+            prompt.append("已抵押的地块：\n");
             for (int i = 0; i < mortgagedTiles.size(); i++) {
                 Tile tile = mortgagedTiles.get(i);
                 PropertyState state = getPropertyState(tile.getPosition());
                 int redeemCost = calculateRedeemCost(tile, state);
                 prompt.append("  ").append(i + 1).append(" = ").append(tile.getName())
-                        .append("（赎回费用：").append(formatMoney(redeemCost)).append("）\n");
+                        .append("（赎回费用：💰").append(formatMoney(redeemCost)).append("）\n");
             }
-            prompt.append("  0 = 不赎回，继续游戏\n请选择: ");
+            prompt.append("  0 = 不赎回，继续游戏\n");
+            prompt.append("请选择: ");
             
             int choice = decisionPort.requestInt(prompt.toString());
             String message;
@@ -1070,8 +1118,8 @@ public class SimpleTurnService implements TurnService {
         
         // 如果跳过了回合号，需要构建一个不包含回合号的头部
         if (skipHeader) {
-            header = "掷骰：" + dice + "\n"
-                    + "移动：" + fromName + " -> " + toName + "\n\n";
+            header = "🎲 掷骰结果：" + dice + " 点\n"
+                    + "📍 移动路径：" + fromName + " ──→ " + toName + "\n\n";
         }
 
         if (tile == null) {
@@ -1195,18 +1243,20 @@ public class SimpleTurnService implements TurnService {
             }
             
             StringBuilder prompt = new StringBuilder();
-            prompt.append("\n[抵押选择] 需要 ").append(formatMoney(requiredAmount))
-                    .append("，当前现金 ").append(formatMoney(player.getMoney()))
-                    .append("，还差 ").append(formatMoney(requiredAmount - player.getMoney()))
-                    .append("\n可抵押的地块：\n");
+            prompt.append("\n💳 抵押选择\n");
+            prompt.append("需要：💰").append(formatMoney(requiredAmount))
+                    .append("  |  当前现金：💰").append(formatMoney(player.getMoney()))
+                    .append("  |  还差：💰").append(formatMoney(requiredAmount - player.getMoney()))
+                    .append("\n\n可抵押的地块：\n");
             for (int i = 0; i < availableTiles.size(); i++) {
                 CountryTile t = availableTiles.get(i);
                 PropertyState state = getPropertyState(t.getPosition());
                 int mortgageValue = calculateMortgageValue(t, state);
                 prompt.append("  ").append(i + 1).append(" = ").append(t.getName())
-                        .append("（抵押价值：").append(formatMoney(mortgageValue)).append("）\n");
+                        .append("（抵押价值：💰").append(formatMoney(mortgageValue)).append("）\n");
             }
-            prompt.append("  0 = 放弃购买\n请选择: ");
+            prompt.append("  0 = 放弃购买\n");
+            prompt.append("请选择: ");
             
             int choice = decisionPort.requestInt(prompt.toString());
             String message;
@@ -1289,16 +1339,17 @@ public class SimpleTurnService implements TurnService {
             }
             
             StringBuilder prompt = new StringBuilder();
-            prompt.append("\n[抵押选择] 需要支付过路费 ").append(formatMoney(toll))
-                    .append("，当前现金 ").append(formatMoney(player.getMoney()))
-                    .append("，还差 ").append(formatMoney(toll - player.getMoney()))
-                    .append("\n可抵押的地块：\n");
+            prompt.append("\n💳 抵押选择 - 支付过路费\n");
+            prompt.append("需要支付：💰").append(formatMoney(toll))
+                    .append("  |  当前现金：💰").append(formatMoney(player.getMoney()))
+                    .append("  |  还差：💰").append(formatMoney(toll - player.getMoney()))
+                    .append("\n\n可抵押的地块：\n");
             for (int i = 0; i < availableTiles.size(); i++) {
                 CountryTile t = availableTiles.get(i);
                 PropertyState state = getPropertyState(t.getPosition());
                 int mortgageValue = calculateMortgageValue(t, state);
                 prompt.append("  ").append(i + 1).append(" = ").append(t.getName())
-                        .append("（抵押价值：").append(formatMoney(mortgageValue)).append("）\n");
+                        .append("（抵押价值：💰").append(formatMoney(mortgageValue)).append("）\n");
             }
             boolean allowBankruptcy = canOfferBankruptcyOption(player);
             if (allowBankruptcy) {
@@ -1424,21 +1475,22 @@ public class SimpleTurnService implements TurnService {
             }
             
             StringBuilder prompt = new StringBuilder();
-            prompt.append("\n[抵押选择] 需要支付税费 ").append(formatMoney(tax))
-                    .append("，当前现金 ").append(formatMoney(player.getMoney()))
-                    .append("，还差 ").append(formatMoney(tax - player.getMoney()))
-                    .append("\n可抵押的地块：\n");
+            prompt.append("\n💳 抵押选择 - 支付税费\n");
+            prompt.append("需要支付：💰").append(formatMoney(tax))
+                    .append("  |  当前现金：💰").append(formatMoney(player.getMoney()))
+                    .append("  |  还差：💰").append(formatMoney(tax - player.getMoney()))
+                    .append("\n\n可抵押的地块：\n");
             int index = 1;
             for (CountryTile t : availableCountryTiles) {
                 PropertyState state = getPropertyState(t.getPosition());
                 int mortgageValue = calculateMortgageValue(t, state);
                 prompt.append("  ").append(index++).append(" = ").append(t.getName())
-                        .append("（抵押价值：").append(formatMoney(mortgageValue)).append("）\n");
+                        .append("（抵押价值：💰").append(formatMoney(mortgageValue)).append("）\n");
             }
             for (CompanyTile t : availableCompanyTiles) {
                 int mortgageValue = calculateCompanyMortgageValue(t);
                 prompt.append("  ").append(index++).append(" = ").append(t.getName())
-                        .append("（抵押价值：").append(formatMoney(mortgageValue)).append("）\n");
+                        .append("（抵押价值：💰").append(formatMoney(mortgageValue)).append("）\n");
             }
             boolean allowBankruptcy = canOfferBankruptcyOption(player);
             if (allowBankruptcy) {
@@ -1582,21 +1634,22 @@ public class SimpleTurnService implements TurnService {
             
             StringBuilder prompt = new StringBuilder();
             String paymentType = recipient != null ? "支付给 " + recipient.getName() : "支付";
-            prompt.append("\n[抵押选择] 需要").append(paymentType).append(" ").append(formatMoney(amount))
-                    .append("，当前现金 ").append(formatMoney(player.getMoney()))
-                    .append("，还差 ").append(formatMoney(amount - player.getMoney()))
-                    .append("\n可抵押的地块：\n");
+            prompt.append("\n💳 抵押选择 - ").append(paymentType).append("\n");
+            prompt.append("需要支付：💰").append(formatMoney(amount))
+                    .append("  |  当前现金：💰").append(formatMoney(player.getMoney()))
+                    .append("  |  还差：💰").append(formatMoney(amount - player.getMoney()))
+                    .append("\n\n可抵押的地块：\n");
             int index = 1;
             for (CountryTile t : availableCountryTiles) {
                 PropertyState state = getPropertyState(t.getPosition());
                 int mortgageValue = calculateMortgageValue(t, state);
                 prompt.append("  ").append(index++).append(" = ").append(t.getName())
-                        .append("（抵押价值：").append(formatMoney(mortgageValue)).append("）\n");
+                        .append("（抵押价值：💰").append(formatMoney(mortgageValue)).append("）\n");
             }
             for (CompanyTile t : availableCompanyTiles) {
                 int mortgageValue = calculateCompanyMortgageValue(t);
                 prompt.append("  ").append(index++).append(" = ").append(t.getName())
-                        .append("（抵押价值：").append(formatMoney(mortgageValue)).append("）\n");
+                        .append("（抵押价值：💰").append(formatMoney(mortgageValue)).append("）\n");
             }
             boolean allowBankruptcy = canOfferBankruptcyOption(player);
             if (allowBankruptcy) {
@@ -1729,28 +1782,30 @@ public class SimpleTurnService implements TurnService {
             }
             
             StringBuilder prompt = new StringBuilder();
-            prompt.append("\n[抵押选择] 需要 ").append(formatMoney(requiredAmount))
-                    .append("，当前现金 ").append(formatMoney(player.getMoney()))
-                    .append("，还差 ").append(formatMoney(requiredAmount - player.getMoney()))
-                    .append("\n可抵押的地块：\n");
+            prompt.append("\n💳 抵押选择 - 购买火车站\n");
+            prompt.append("需要：💰").append(formatMoney(requiredAmount))
+                    .append("  |  当前现金：💰").append(formatMoney(player.getMoney()))
+                    .append("  |  还差：💰").append(formatMoney(requiredAmount - player.getMoney()))
+                    .append("\n\n可抵押的地块：\n");
             int index = 1;
             for (CountryTile t : availableCountryTiles) {
                 PropertyState state = getPropertyState(t.getPosition());
                 int mortgageValue = calculateMortgageValue(t, state);
                 prompt.append("  ").append(index++).append(" = ").append(t.getName())
-                        .append("（抵押价值：").append(formatMoney(mortgageValue)).append("）\n");
+                        .append("（抵押价值：💰").append(formatMoney(mortgageValue)).append("）\n");
             }
             for (CompanyTile t : availableCompanyTiles) {
                 int mortgageValue = calculateCompanyMortgageValue(t);
                 prompt.append("  ").append(index++).append(" = ").append(t.getName())
-                        .append("（抵押价值：").append(formatMoney(mortgageValue)).append("）\n");
+                        .append("（抵押价值：💰").append(formatMoney(mortgageValue)).append("）\n");
             }
             for (TrainStationTile t : availableTrainStations) {
                 int mortgageValue = calculateTrainStationMortgageValue(t);
                 prompt.append("  ").append(index++).append(" = ").append(t.getName())
-                        .append("（抵押价值：").append(formatMoney(mortgageValue)).append("）\n");
+                        .append("（抵押价值：💰").append(formatMoney(mortgageValue)).append("）\n");
             }
-            prompt.append("  0 = 放弃购买\n请选择: ");
+            prompt.append("  0 = 放弃购买\n");
+            prompt.append("请选择: ");
             
             int choice = decisionPort.requestInt(prompt.toString());
             String message;
@@ -1861,26 +1916,27 @@ public class SimpleTurnService implements TurnService {
             }
             
             StringBuilder prompt = new StringBuilder();
-            prompt.append("\n[抵押选择] 需要支付过路费 ").append(formatMoney(toll))
-                    .append("，当前现金 ").append(formatMoney(player.getMoney()))
-                    .append("，还差 ").append(formatMoney(toll - player.getMoney()))
-                    .append("\n可抵押的地块：\n");
+            prompt.append("\n💳 抵押选择 - 支付火车站过路费\n");
+            prompt.append("需要支付：💰").append(formatMoney(toll))
+                    .append("  |  当前现金：💰").append(formatMoney(player.getMoney()))
+                    .append("  |  还差：💰").append(formatMoney(toll - player.getMoney()))
+                    .append("\n\n可抵押的地块：\n");
             int index = 1;
             for (CountryTile t : availableCountryTiles) {
                 PropertyState state = getPropertyState(t.getPosition());
                 int mortgageValue = calculateMortgageValue(t, state);
                 prompt.append("  ").append(index++).append(" = ").append(t.getName())
-                        .append("（抵押价值：").append(formatMoney(mortgageValue)).append("）\n");
+                        .append("（抵押价值：💰").append(formatMoney(mortgageValue)).append("）\n");
             }
             for (CompanyTile t : availableCompanyTiles) {
                 int mortgageValue = calculateCompanyMortgageValue(t);
                 prompt.append("  ").append(index++).append(" = ").append(t.getName())
-                        .append("（抵押价值：").append(formatMoney(mortgageValue)).append("）\n");
+                        .append("（抵押价值：💰").append(formatMoney(mortgageValue)).append("）\n");
             }
             for (TrainStationTile t : availableTrainStations) {
                 int mortgageValue = calculateTrainStationMortgageValue(t);
                 prompt.append("  ").append(index++).append(" = ").append(t.getName())
-                        .append("（抵押价值：").append(formatMoney(mortgageValue)).append("）\n");
+                        .append("（抵押价值：💰").append(formatMoney(mortgageValue)).append("）\n");
             }
             boolean allowBankruptcy = canOfferBankruptcyOption(player);
             if (allowBankruptcy) {
@@ -2125,10 +2181,8 @@ public class SimpleTurnService implements TurnService {
                     payMoney(player, price);
                     tileOwners.put(tile.getPosition(), player.getId());
                     player.addOwnedTile(tile.getPosition());
-                    message = "玩家 " + player.getName() + " 以 " + formatMoney(price)
-                            + " 购入 [" + tile.getName() + "]。";
                     playerRepository.save(player);
-                    String summary = buildResultSummary("购买火车站结果", message, player);
+                    String summary = "✅ 购买成功";
                     return new TurnSummaryEvent(player, summary);
                 } else {
                     // 钱不够，需要抵押
@@ -2549,6 +2603,14 @@ public class SimpleTurnService implements TurnService {
                 playerRepository.save(player);
                 String tileName = getTileName(targetPos);
                 resultMessages.add("移动到 " + tileName + (bonus > 0 ? "，获得奖励 " + formatMoney(bonus) : ""));
+            } else if (eff.startsWith("moveTo:")) {
+                // 移动到指定位置（无奖励）
+                int targetPos = Integer.parseInt(eff.substring(7));
+                int oldPos = player.getPosition();
+                player.setPosition(targetPos);
+                playerRepository.save(player);
+                String tileName = getTileName(targetPos);
+                resultMessages.add("移动到 " + tileName);
             } else if (eff.startsWith("fine:max:")) {
                 // 现金最多的玩家被罚款
                 int amount = Integer.parseInt(eff.substring(9));
@@ -2832,6 +2894,10 @@ public class SimpleTurnService implements TurnService {
                 } else {
                     descriptions.add("移动到 " + tileName);
                 }
+            } else if (eff.startsWith("moveTo:")) {
+                int targetPos = Integer.parseInt(eff.substring(7));
+                String tileName = getTileName(targetPos);
+                descriptions.add("移动到 " + tileName);
             } else if (eff.startsWith("fine:max:")) {
                 int amount = Integer.parseInt(eff.substring(9));
                 descriptions.add("现金最多的玩家罚 " + formatMoney(amount));
