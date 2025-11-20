@@ -41,9 +41,11 @@ public class JsonCardRepository implements CardRepository {
         Map<Integer, DrawCard> map = cache.get(CardType.CHANCE);
         for (Map<String, Object> item : loader.loadChance()) {
             int id = ((Number) item.get("id")).intValue();
-            map.put(id, new ChanceCard(id, (String) item.get("title"),
-                    (String) item.get("effect"),
-                    Optional.ofNullable(item.get("flavor")).map(Object::toString).orElse("")));
+            String title = (String) item.get("title");
+            String effect = Optional.ofNullable(item.get("effect")).map(Object::toString).orElse("");
+            String effectCommand = Optional.ofNullable(item.get("effectCommand")).map(Object::toString).orElse(null);
+            String flavor = Optional.ofNullable(item.get("flavor")).map(Object::toString).orElse("");
+            map.put(id, new ChanceCard(id, title, effect, effectCommand, flavor));
         }
     }
 
@@ -51,9 +53,11 @@ public class JsonCardRepository implements CardRepository {
         Map<Integer, DrawCard> map = cache.get(CardType.FATE);
         for (Map<String, Object> item : loader.loadFate()) {
             int id = ((Number) item.get("id")).intValue();
-            map.put(id, new FateCard(id, (String) item.get("title"),
-                    (String) item.get("effect"),
-                    Optional.ofNullable(item.get("flavor")).map(Object::toString).orElse("")));
+            String title = (String) item.get("title");
+            String effect = Optional.ofNullable(item.get("effect")).map(Object::toString).orElse("");
+            String effectCommand = Optional.ofNullable(item.get("effectCommand")).map(Object::toString).orElse(null);
+            String flavor = Optional.ofNullable(item.get("flavor")).map(Object::toString).orElse("");
+            map.put(id, new FateCard(id, title, effect, effectCommand, flavor));
         }
     }
 }

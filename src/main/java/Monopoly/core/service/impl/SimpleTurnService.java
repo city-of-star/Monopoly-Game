@@ -2570,7 +2570,7 @@ public class SimpleTurnService implements TurnService {
         if (drawnCard.getFlavorText() != null && !drawnCard.getFlavorText().isEmpty()) {
             cardInfo += "描述：" + drawnCard.getFlavorText() + "\n";
         }
-        cardInfo += "效果：" + getEffectDescription(drawnCard.getEffect()) + "\n";
+        cardInfo += "效果：" + drawnCard.getEffect() + "\n";
         
         // 处理卡牌效果
         GameEvent effectEvent = processCardEffect(player, drawnCard, header, locationLine + cardInfo, passedGo, currentPos);
@@ -2581,7 +2581,7 @@ public class SimpleTurnService implements TurnService {
      * 处理卡牌效果。
      */
     private GameEvent processCardEffect(Player player, DrawCard card, String header, String locationLine, boolean passedGo, int currentPos) {
-        String effect = card.getEffect();
+        String effect = card.getEffectCommand();
         var players = playerRepository.findAll().stream()
                 .sorted(Comparator.comparingInt(Player::getId))
                 .toList();
@@ -2917,73 +2917,6 @@ public class SimpleTurnService implements TurnService {
             }
         }
         return best;
-    }
-
-    /**
-     * 将技术性的效果字符串转换为用户友好的中文描述。
-     */
-    private String getEffectDescription(String effect) {
-        // 解析效果字符串（可能包含多个效果，用逗号分隔）
-        String[] effects = effect.split(",");
-        List<String> descriptions = new ArrayList<>();
-        
-        for (String eff : effects) {
-            eff = eff.trim();
-            if (eff.startsWith("lose:")) {
-                int amount = Integer.parseInt(eff.substring(5));
-                descriptions.add("花费 " + formatMoney(amount));
-            } else if (eff.startsWith("gain:")) {
-                int amount = Integer.parseInt(eff.substring(5));
-                descriptions.add("获得 " + formatMoney(amount));
-            } else if (eff.startsWith("pause:")) {
-                int turns = Integer.parseInt(eff.substring(6));
-                descriptions.add("下" + turns + "回合暂停行动");
-            } else if (eff.equals("goToJail")) {
-                descriptions.add("立刻坐牢");
-            } else if (eff.equals("jailCard")) {
-                descriptions.add("获得出狱许可证（可以保留或出售）");
-            } else if (eff.startsWith("go:")) {
-                String[] parts = eff.substring(3).split(",bonus:");
-                int targetPos = Integer.parseInt(parts[0]);
-                int bonus = parts.length > 1 ? Integer.parseInt(parts[1]) : 0;
-                String tileName = getTileName(targetPos);
-                if (bonus > 0) {
-                    descriptions.add("马上回到" + tileName + "并领取 " + formatMoney(bonus));
-                } else {
-                    descriptions.add("移动到 " + tileName);
-                }
-            } else if (eff.startsWith("bonus:")) {
-                int amount = Integer.parseInt(eff.substring(6));
-                descriptions.add("额外获得 " + formatMoney(amount));
-            } else if (eff.startsWith("moveTo:")) {
-                int targetPos = Integer.parseInt(eff.substring(7));
-                String tileName = getTileName(targetPos);
-                descriptions.add("移动到 " + tileName);
-            } else if (eff.startsWith("fine:max:")) {
-                int amount = Integer.parseInt(eff.substring(9));
-                descriptions.add("现金最多的玩家罚 " + formatMoney(amount));
-            } else if (eff.startsWith("fine:near:")) {
-                String[] parts = eff.substring(10).split(":");
-                int targetPos = Integer.parseInt(parts[0]);
-                int amount = Integer.parseInt(parts[1]);
-                String tileName = getTileName(targetPos);
-                descriptions.add("最靠近" + tileName + "的玩家付 " + formatMoney(amount));
-            } else if (eff.startsWith("dice:max:")) {
-                int multiplier = Integer.parseInt(eff.substring(9));
-                descriptions.add("大家转转盘，点数最大的人拿取点数 × " + multiplier + " 的金额");
-            } else if (eff.equals("dice:move")) {
-                descriptions.add("捐 200 元再转转盘行动一次");
-            } else if (eff.equals("buildHouse:min")) {
-                descriptions.add("房子最少的玩家免费盖一栋");
-            } else if (eff.equals("removeHouse:max")) {
-                descriptions.add("房子最多的人拆一栋房子");
-            } else {
-                // 未知效果，显示原字符串
-                descriptions.add(eff);
-            }
-        }
-        
-        return String.join("，", descriptions);
     }
 }
 

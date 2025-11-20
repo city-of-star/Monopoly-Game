@@ -23,6 +23,13 @@ public class FateCard extends DrawCard {
         super(id, title, effect, flavorText);
     }
 
+    /**
+     * 支持同时传入展示效果与指令效果的构造函数。
+     */
+    public FateCard(int id, String title, String effect, String effectCommand, String flavorText) {
+        super(id, title, effect, effectCommand, flavorText);
+    }
+
     @Override
     public CardType getType() {
         return CardType.FATE;
