@@ -470,9 +470,9 @@ public class SimpleTurnService implements TurnService {
         public GameEvent interact() {
             int price = tile.getSellPrice();
             String prompt = "🏭 购入公司\n"
+                    + "当前现金：💰" + formatMoney(player.getMoney()) + "\n"
                     + "公司：[" + tile.getName() + "]  " + formatMoney(price) + "/" + formatMoney(tile.getMortgagePrice())
                     + "（价格/抵押价格）\n"
-                    + "当前现金：💰" + formatMoney(player.getMoney()) + "\n"
                     + "请选择(1=购买，0=放弃)：";
             int choice = decisionPort.requestInt(prompt);
             String message;
@@ -2200,9 +2200,9 @@ public class SimpleTurnService implements TurnService {
         public GameEvent interact() {
             int price = tile.getSellPrice();
             String prompt = "🚉 火车站购入\n"
+                    + "当前现金：💰" + formatMoney(player.getMoney()) + "\n"
                     + "站点：[" + tile.getName() + "]  " + formatMoney(price) + "/" + formatMoney(tile.getMortgagePrice())
                     + "（价格/抵押价格）\n"
-                    + "当前现金：💰" + formatMoney(player.getMoney()) + "\n"
                     + "请选择(1=购买，0=放弃)：";
             int choice = decisionPort.requestInt(prompt);
             String message;
